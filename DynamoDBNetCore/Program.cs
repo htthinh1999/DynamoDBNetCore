@@ -4,6 +4,8 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using DynamoDBNetCore;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,14 +16,12 @@ var dynamoDbConfig = builder.Configuration.GetSection("DynamoDb");
 var runLocalDynamoDb = dynamoDbConfig.GetValue<bool>("LocalMode");
 var clientConfig = new AmazonDynamoDBConfig
 {
-    RegionEndpoint = RegionEndpoint.EUWest2,
+    RegionEndpoint = RegionEndpoint.APSoutheast1,
     ServiceURL = dynamoDbConfig.GetValue<string>("LocalServiceUrl")
 };
 var credentials = new BasicAWSCredentials("xxx", "xxx");
 var dynamoClient = new AmazonDynamoDBClient(credentials, clientConfig);
-var dynamoContext = new DynamoDBContext(dynamoClient);
-builder.Services.AddSingleton<AmazonDynamoDBClient>(dynamoClient);
-builder.Services.AddSingleton<DynamoDBContext>(dynamoContext);
+builder.Services.AddScoped<IDynamoDBContext, DynamoDBContext>(x => new DynamoDBContext(dynamoClient));
 
 // Create table if not exist
 var tableExists = await dynamoClient.ListTablesAsync();

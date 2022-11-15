@@ -1,7 +1,5 @@
-﻿using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
+﻿using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-using Amazon.DynamoDBv2.Model;
 using Microsoft.AspNetCore.Mvc;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -12,20 +10,18 @@ namespace DynamoDBNetCore.Controllers
     [ApiController]
     public class CustomersController : ControllerBase
     {
-        private readonly DynamoDBContext _amazonDynamoDb;
+        private readonly IDynamoDBContext _context;
         public CustomersController(
-            DynamoDBContext amazonDynammoDb)
+            IDynamoDBContext context)
         {
-            _amazonDynamoDb = amazonDynammoDb;
+            _context = context;
         }
 
         // GET: api/<UsersController>
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var response = await _amazonDynamoDb.ScanAsync<Customer>(
-                new List<ScanCondition>() { }
-            ).GetRemainingAsync();
+            var response = await _context.ScanAsync<Customer>(default).GetRemainingAsync();
             return Ok(response);
         }
 
@@ -33,10 +29,11 @@ namespace DynamoDBNetCore.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(string id)
         {
-            var response = await _amazonDynamoDb.ScanAsync<Customer>(new List<ScanCondition>()
+            var response = await _context.LoadAsync<Customer>(new Customer
             {
-                new ScanCondition(nameof(Customer.CustomerId), ScanOperator.Equal, id)
-            }).GetRemainingAsync();
+                CustomerId = id
+            });
+            if (response == null) return NotFound();
             return Ok(response);
         }
 
@@ -44,23 +41,33 @@ namespace DynamoDBNetCore.Controllers
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] string username)
         {
-            await _amazonDynamoDb.SaveAsync(new Customer
+            var customers = await _context.ScanAsync<Customer>(new List<ScanCondition>()
+            {
+                new ScanCondition(nameof(Customer.Username), ScanOperator.Equal, username)
+            }).GetRemainingAsync();
+            if (customers.Any()) return BadRequest($"Customer with Username {username} Already Exists");
+            await _context.SaveAsync(new Customer
             {
                 Username = username
             });
-            return Ok();
+            return NoContent();
         }
 
         // PUT api/<UsersController>/5
         [HttpPut("{id}")]
-        public void Put(string id, [FromBody] string value)
+        public async Task<IActionResult> Put(string id, [FromBody] string value)
         {
+            var response = await _context.LoadAsync<Customer>(id);
+            return Ok(response);
         }
 
         // DELETE api/<UsersController>/5
         [HttpDelete("{id}")]
-        public void Delete(string id)
+        public async Task<IActionResult> Delete(string id)
         {
+            var customer = await _context.LoadAsync<Customer>(id);
+            await _context.DeleteAsync(customer);
+            return NoContent();
         }
     }
 }
